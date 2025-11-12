@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Downloader</title>
+    <link href="https://fonts.googleapis.com/css2?family=Lato&family=Roboto&display=swap" rel="stylesheet">
+    <style>
+        body { margin: 0; color: #fff; transition: all 0.5s ease; }
+        #background-slider { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-size: cover; background-position: center; transition: background-image 1s ease-in-out; z-index: -1; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); }
+        .content-wrapper { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; box-sizing: border-box; }
+        .file-card { background: rgba(0, 0, 0, 0.7); border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.5); overflow: hidden; width: 100%; max-width: 400px; text-align: center; padding: 30px; backdrop-filter: blur(10px); }
+        .file-card img { width: 150px; height: 150px; object-fit: cover; border-radius: 50%; border: 4px solid #fff; margin-bottom: 20px; }
+        .file-card h1 { margin: 0 0 10px 0; font-size: 2.2em; }
+        .file-card #pageDescription { font-size: 1.1em; color: #ddd; margin-bottom: 25px; }
+        .file-card #fileName { font-weight: bold; margin-bottom: 25px; display: block; }
+        .download-btn { padding: 15px 30px; border: none; background-color: #007bff; color: white; border-radius: 50px; cursor: pointer; font-size: 1.2em; font-weight: bold; transition: background-color 0.3s, transform 0.2s; }
+        .download-btn:hover { background-color: #0056b3; transform: scale(1.05); }
+        .modal { display: none; position: fixed; z-index: 100; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); }
+        .modal-content { background-color: #2c2c2c; margin: 10% auto; padding: 25px; border-radius: 8px; width: 90%; max-width: 500px; text-align: center; color: #fff; }
+        .modal-content input[type="text"] { padding: 10px; width: 80%; border: 1px solid #555; background: #444; color: #fff; border-radius: 5px; margin-bottom: 20px; }
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .task-button { display: inline-block; margin-top: 15px; padding: 12px 25px; background-color: #28a745; color: white; text-decoration: none; border-radius: 5px; transition: background-color 0.3s; }
+        .task-button.disabled { background-color: #555; cursor: not-allowed; }
+        #questionContainer { margin-top: 20px; text-align: left; }
+        #questionContainer label { display: block; margin: 12px 0; background: #444; padding: 10px; border-radius: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div id="background-slider"></div>
+    <div class="overlay"></div>
+    <div class="content-wrapper">
+        <div class="file-card">
+            <h1 id="pageTitle">Loading...</h1>
+            <p id="pageDescription"></p>
+            <img id="filePhoto" src="" alt="File Photo">
+            <span id="fileName"></span>
+            <button class="download-btn" onclick="openTask()">Download</button>
+        </div>
+    </div>
+    <div id="taskModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal()">&times;</span>
+            <h2>Complete the Task to Download</h2>
+            <p>Please enter your name:</p>
+            <input type="text" id="userName" placeholder="Your Name" required>
+            <p>Step 1: Click the button below and wait for a few seconds on the new page.</p>
+            <a id="visitLink" href="#" target="_blank" class="task-button" onclick="handleVisitClick()">Visit Website</a>
+            <p id="timerMessage" style="color: #ffc107; display: none;"></p>
+            <div id="questionContainer" style="display: none;">
+                <hr style="border-color: #555; margin: 20px 0;">
+                <h3 id="questionText"></h3>
+                <label><input type="radio" name="answer" value="A"> <span id="optionALabel"></span></label>
+                <label><input type="radio" name="answer" value="B"> <span id="optionBLabel"></span></label>
+                <label><input type="radio" name="answer" value="C"> <span id="optionCLabel"></span></label>
+                <label><input type="radio" name="answer" value="D"> <span id="optionDLabel"></span></label>
+                <button onclick="submitAnswer()" style="margin-top: 20px;">Submit Answer</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-database.js"></script>
+    <script>
+        const firebaseConfig = {
+          apiKey: "AIzaSyCIh6woToovE7z4YkV9ODrToC1AqeC4hKY",
+          authDomain: "webs-27543.firebaseapp.com",
+          databaseURL: "https://webs-27543-default-rtdb.firebaseio.com",
+          projectId: "webs-27543",
+          storageBucket: "webs-27543.firebasestorage.app",
+          messagingSenderId: "546632284163",
+          appId: "1:546632284163:web:14901ba6e7f9f4f27ab636"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+        let appConfig = null;
+        let currentQuestion = null;
+        let sliderInterval;
+        let currentImageIndex = 0;
+        const modal = document.getElementById('taskModal');
+
+        database.ref('appConfig').on('value', (snapshot) => {
+            if (snapshot.exists()) {
+                appConfig = snapshot.val();
+                document.body.style.fontFamily = appConfig.fontFamily;
+                document.body.style.fontSize = appConfig.fontSize;
+                document.getElementById('pageTitle').innerText = appConfig.title || 'File Download';
+                document.getElementById('pageDescription').innerText = appConfig.description || '';
+                document.getElementById('filePhoto').src = appConfig.photoUrl || '';
+                document.getElementById('fileName').innerText = appConfig.fileName || 'No file';
+                if (appConfig.backgroundImages && appConfig.backgroundImages.length > 0) {
+                    clearInterval(sliderInterval);
+                    updateBackground();
+                    sliderInterval = setInterval(updateBackground, 5000);
+                }
+            }
+        });
+
+        function updateBackground() {
+            if (!appConfig.backgroundImages || appConfig.backgroundImages.length === 0) return;
+            document.getElementById('background-slider').style.backgroundImage = `url('${appConfig.backgroundImages[currentImageIndex]}')`;
+            currentImageIndex = (currentImageIndex + 1) % appConfig.backgroundImages.length;
+        }
+
+        function openTask() {
+            if (!appConfig || !appConfig.questions || Object.keys(appConfig.questions).length === 0) {
+                alert('Download task is not configured. No questions found.');
+                return;
+            }
+            
+            // Randomly select a question
+            const questionKeys = Object.keys(appConfig.questions);
+            const randomKey = questionKeys[Math.floor(Math.random() * questionKeys.length)];
+            currentQuestion = appConfig.questions[randomKey];
+            
+            document.getElementById('visitLink').href = appConfig.visitLink;
+            document.getElementById('questionText').innerText = currentQuestion.question;
+            document.getElementById('optionALabel').innerText = currentQuestion.options.A;
+            document.getElementById('optionBLabel').innerText = currentQuestion.options.B;
+            document.getElementById('optionCLabel').innerText = currentQuestion.options.C;
+            document.getElementById('optionDLabel').innerText = currentQuestion.options.D;
+            modal.style.display = "block";
+        }
+
+        function handleVisitClick() {
+            const visitButton = document.getElementById('visitLink');
+            const timerMessage = document.getElementById('timerMessage');
+            visitButton.classList.add('disabled');
+            visitButton.onclick = () => false;
+            let countdown = 10;
+            timerMessage.style.display = 'block';
+            timerMessage.innerText = `Please wait, question will appear in ${countdown} seconds...`;
+            const timer = setInterval(() => {
+                countdown--;
+                timerMessage.innerText = `Please wait, question will appear in ${countdown} seconds...`;
+                if (countdown <= 0) {
+                    clearInterval(timer);
+                    timerMessage.style.display = 'none';
+                    document.getElementById('questionContainer').style.display = 'block';
+                }
+            }, 1000);
+        }
+
+        function closeModal() {
+            modal.style.display = "none";
+            document.getElementById('userName').value = '';
+            const checkedRadio = document.querySelector('input[name="answer"]:checked');
+            if (checkedRadio) checkedRadio.checked = false;
+            document.getElementById('questionContainer').style.display = 'none';
+            const visitButton = document.getElementById('visitLink');
+            visitButton.classList.remove('disabled');
+            visitButton.onclick = handleVisitClick;
+        }
+
+        function submitAnswer() {
+            const userName = document.getElementById('userName').value;
+            if (!userName.trim()) { alert('Please enter your name.'); return; }
+            const selectedAnswer = document.querySelector('input[name="answer"]:checked');
+            if (!selectedAnswer) { alert('Please select an answer.'); return; }
+
+            if (selectedAnswer.value === currentQuestion.correctAnswer) {
+                alert('Correct! Your download will now start.');
+                const downloadLog = {
+                    userName: userName,
+                    fileName: appConfig.fileName,
+                    timestamp: new Date().toISOString()
+                };
+                database.ref('downloads').push(downloadLog);
+                const link = document.createElement('a');
+                link.href = appConfig.downloadLink;
+                link.download = appConfig.fileName;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                closeModal();
+            } else {
+                alert('Incorrect answer. Please try again.');
+            }
+        }
+        window.onclick = (event) => { if (event.target == modal) closeModal(); };
+    </script>
+</body>
+</html>

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background-color: #eef1f5; display: flex; flex-wrap: wrap; gap: 20px; }
+        .container { background: #fff; padding: 25px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
+        .config-container { flex: 1 1 500px; }
+        .questions-container { flex: 1 1 450px; }
+        .downloads-container { flex: 1 1 100%; }
+        h2, h3 { text-align: center; color: #333; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; margin-top: 0; }
+        input[type="text"], input[type="url"], textarea, select { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin-top: 10px; }
+        button:hover { background-color: #0056b3; }
+        .options { margin: 10px 0; display: flex; align-items: center; gap: 10px; }
+        .options input[type="text"] { flex: 1; }
+        #questions-list { max-height: 400px; overflow-y: auto; margin-top: 15px; padding-right: 10px; }
+        .question-item { background: #f9f9f9; border: 1px solid #e1e1e1; padding: 15px; margin-bottom: 10px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; }
+        .question-item p { margin: 0; flex: 1; }
+        .question-item .delete-btn { background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+        #downloads-log { max-height: 500px; overflow-y: auto; }
+        .log-entry { background-color: #fafafa; border: 1px solid #e1e1e1; padding: 10px; margin-bottom: 8px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+
+    <div class="container config-container">
+        <h2>Website & File Configuration</h2>
+        <h3>Page Style & Content</h3>
+        <input type="text" id="pageTitle" placeholder="Main Title on Page">
+        <textarea id="pageDescription" placeholder="Description on Page"></textarea>
+        <textarea id="backgroundImages" placeholder="Enter Background Image URLs (one URL per line)"></textarea>
+        <select id="fontFamily">
+            <option value="'Roboto', sans-serif">Roboto</option>
+            <option value="'Lato', sans-serif">Lato</option>
+            <option value="'Arial', sans-serif">Arial</option>
+        </select>
+        <select id="fontSize"><option value="16px">16px (Normal)</option><option value="18px">18px (Large)</option></select>
+        <h3>File Details</h3>
+        <input type="text" id="fileName" placeholder="File Name">
+        <input type="url" id="downloadLink" placeholder="Download Link">
+        <input type="url" id="photoUrl" placeholder="File Photo URL">
+        <input type="url" id="visitLink" placeholder="Website to Visit">
+        <button onclick="updateConfig()">Save General Settings</button>
+    </div>
+
+    <div class="container questions-container">
+        <h3>Manage Unlock Questions</h3>
+        <input type="text" id="newQuestion" placeholder="New Question Text">
+        <div class="options">
+            <input type="text" id="newOptionA" placeholder="Option A"><input type="radio" name="newCorrectAnswer" value="A">
+        </div>
+        <div class="options">
+            <input type="text" id="newOptionB" placeholder="Option B"><input type="radio" name="newCorrectAnswer" value="B">
+        </div>
+        <div class="options">
+            <input type="text" id="newOptionC" placeholder="Option C"><input type="radio" name="newCorrectAnswer" value="C">
+        </div>
+        <div class="options">
+            <input type="text" id="newOptionD" placeholder="Option D"><input type="radio" name="newCorrectAnswer" value="D">
+        </div>
+        <button onclick="addQuestion()" style="background-color: #28a745;">Add Question</button>
+        <hr style="margin: 20px 0;">
+        <h4>Existing Questions</h4>
+        <div id="questions-list"><p>Loading questions...</p></div>
+    </div>
+
+    <div class="container downloads-container">
+        <h2>Download History</h2>
+        <div id="downloads-log"><p>Loading download history...</p></div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.6.8/firebase-database.js"></script>
+
+    <script>
+        const firebaseConfig = {
+          apiKey: "AIzaSyCIh6woToovE7z4YkV9ODrToC1AqeC4hKY",
+          authDomain: "webs-27543.firebaseapp.com",
+          databaseURL: "https://webs-27543-default-rtdb.firebaseio.com",
+          projectId: "webs-27543",
+          storageBucket: "webs-27543.firebasestorage.app",
+          messagingSenderId: "546632284163",
+          appId: "1:546632284163:web:14901ba6e7f9f4f27ab636"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        function updateConfig() {
+            const backgroundImages = document.getElementById('backgroundImages').value.split('\n').filter(url => url.trim() !== '');
+            const generalConfig = {
+                title: document.getElementById('pageTitle').value,
+                description: document.getElementById('pageDescription').value,
+                backgroundImages: backgroundImages,
+                fontFamily: document.getElementById('fontFamily').value,
+                fontSize: document.getElementById('fontSize').value,
+                fileName: document.getElementById('fileName').value,
+                downloadLink: document.getElementById('downloadLink').value,
+                photoUrl: document.getElementById('photoUrl').value,
+                visitLink: document.getElementById('visitLink').value,
+            };
+            database.ref('appConfig').update(generalConfig)
+                .then(() => alert('General settings updated successfully!'))
+                .catch((error) => console.error('Error:', error));
+        }
+
+        function addQuestion() {
+            const newCorrectAnswer = document.querySelector('input[name="newCorrectAnswer"]:checked');
+            if (!newCorrectAnswer) { alert('Please select a correct answer.'); return; }
+            
+            const questionData = {
+                question: document.getElementById('newQuestion').value,
+                options: {
+                    A: document.getElementById('newOptionA').value,
+                    B: document.getElementById('newOptionB').value,
+                    C: document.getElementById('newOptionC').value,
+                    D: document.getElementById('newOptionD').value,
+                },
+                correctAnswer: newCorrectAnswer.value
+            };
+
+            if (!questionData.question || !questionData.options.A || !questionData.options.B || !questionData.options.C || !questionData.options.D) {
+                alert('Please fill all question fields.');
+                return;
+            }
+
+            database.ref('appConfig/questions').push(questionData).then(() => {
+                alert('Question added successfully!');
+                document.getElementById('newQuestion').value = '';
+                document.getElementById('newOptionA').value = '';
+                document.getElementById('newOptionB').value = '';
+                document.getElementById('newOptionC').value = '';
+                document.getElementById('newOptionD').value = '';
+                newCorrectAnswer.checked = false;
+            });
+        }
+        
+        function deleteQuestion(key) {
+            if (confirm('Are you sure you want to delete this question?')) {
+                database.ref(`appConfig/questions/${key}`).remove();
+            }
+        }
+
+        // Load existing config and questions
+        database.ref('appConfig').on('value', (snapshot) => {
+            if (snapshot.exists()) {
+                const config = snapshot.val();
+                document.getElementById('pageTitle').value = config.title || '';
+                document.getElementById('pageDescription').value = config.description || '';
+                document.getElementById('backgroundImages').value = (config.backgroundImages || []).join('\n');
+                document.getElementById('fontFamily').value = config.fontFamily || "'Roboto', sans-serif";
+                document.getElementById('fontSize').value = config.fontSize || '16px';
+                document.getElementById('fileName').value = config.fileName || '';
+                document.getElementById('downloadLink').value = config.downloadLink || '';
+                document.getElementById('photoUrl').value = config.photoUrl || '';
+                document.getElementById('visitLink').value = config.visitLink || '';
+
+                const questionsList = document.getElementById('questions-list');
+                questionsList.innerHTML = '';
+                const questions = config.questions;
+                if (questions) {
+                    Object.keys(questions).forEach(key => {
+                        const item = questions[key];
+                        const div = document.createElement('div');
+                        div.className = 'question-item';
+                        div.innerHTML = `<p>${item.question}</p><button class="delete-btn" onclick="deleteQuestion('${key}')">Delete</button>`;
+                        questionsList.appendChild(div);
+                    });
+                } else {
+                    questionsList.innerHTML = '<p>No questions added yet.</p>';
+                }
+            }
+        });
+
+        // Display Download History
+        database.ref('downloads').on('value', (snapshot) => {
+            const logContainer = document.getElementById('downloads-log');
+            logContainer.innerHTML = '';
+            if (snapshot.exists()) {
+                const logs = Object.values(snapshot.val()).reverse();
+                logs.forEach(log => {
+                    const el = document.createElement('div');
+                    el.className = 'log-entry';
+                    el.innerHTML = `<p><strong>User:</strong> ${log.userName} | <strong>File:</strong> ${log.fileName} | <strong>Time:</strong> ${new Date(log.timestamp).toLocaleString()}</p>`;
+                    logContainer.appendChild(el);
+                });
+            } else {
+                logContainer.innerHTML = '<p>No downloads recorded yet.</p>';
+            }
+        });
+    </script>
+</body>
+</html>
